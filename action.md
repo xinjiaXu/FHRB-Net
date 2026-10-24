@@ -29,7 +29,7 @@ conda activate fhrbnet-rs
 bash prepare_server_data.sh /home/xxj/Data
 ```
 
-To run inference with an author-provided trained model, download the `weights` archive from the link in `weights/README.md` (Baidu extraction code: `au2c`) and put the desired `.pth` file in `weights/`. Training defaults to `load=False` and does not require this FHRB-Net checkpoint. The environment setup uses the separate `requirements_server.txt`; the original file contains empty `onnx==` and `netron==` pins.
+To run inference with an author-provided trained model, download the `weights` archive from [Baidu Netdisk](https://pan.baidu.com/s/1JKW8Btz_esnTO18PtuZ5mw), use extraction code `au2c`, and put the desired `.pth` file in `weights/`. Training defaults to `load=False` and does not require this FHRB-Net checkpoint. The environment setup uses the separate `requirements_server.txt`; the original file contains empty `onnx==` and `netron==` pins.
 
 ## Train
 
