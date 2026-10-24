@@ -50,7 +50,8 @@ def train_val(
         lr, criterion, metric_collection, to_pilimg, epoch,
         warmup_lr=None, grad_scaler=None,
         best_metrics=None, checkpoint_path=None,
-        best_f1score_model_path=None, best_loss_model_path=None, non_improved_epoch=None
+        best_f1score_model_path=None, best_loss_model_path=None, non_improved_epoch=None,
+        image_dir_a='t1', image_dir_b='t2', label_dir='label'
 ):
     """
     train or evaluate on specified dataset,
@@ -149,9 +150,9 @@ def train_val(
         if i == sample_batch:
             sample_index = np.random.randint(low=0, high=batch_img1.shape[0])
             # ipdb.set_trace()
-            t1_images_dir = Path(f'{dataset_name}/{mode}/t1/')
-            t2_images_dir = Path(f'{dataset_name}/{mode}/t2/')
-            labels_dir = Path(f'{dataset_name}/{mode}/label/')
+            t1_images_dir = Path(dataset_name) / mode / image_dir_a
+            t2_images_dir = Path(dataset_name) / mode / image_dir_b
+            labels_dir = Path(dataset_name) / mode / label_dir
             t1_img_log = Image.open(list(t1_images_dir.glob(name[sample_index] + '.*'))[0])
             t2_img_log = Image.open(list(t2_images_dir.glob(name[sample_index] + '.*'))[0])
             label_log = Image.open(list(labels_dir.glob(name[sample_index] + '.*'))[0])

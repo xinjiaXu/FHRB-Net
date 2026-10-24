@@ -1,98 +1,105 @@
-import sys
-from torch.utils.data import DataLoader
-from utils.data_loading import BasicDataset
+import argparse
 import logging
-from utils.path_hyperparameter import ph
+import os
+
 import torch
+from torch.utils.data import DataLoader
 from torchmetrics import MetricCollection, Accuracy, Precision, Recall, F1Score
+
 from models.Models import DPCD
+from utils.data_loading import BasicDataset
 from utils.dataset_process import compute_mean_std
+from utils.path_hyperparameter import ph
 from tqdm import tqdm
 
 
-def train_net(dataset_name, load_checkpoint=True):
-    # 1. Create dataset
+def run_inference(dataset_root, checkpoint, image_dir_a, image_dir_b, label_dir,
+                  checkpoint_format, work_dir, num_workers):
+    ph.dataset_name = dataset_root
+    ph.image_dir_a = image_dir_a
+    ph.image_dir_b = image_dir_b
+    ph.label_dir = label_dir
+    ph.load = checkpoint
+    ph.log_path = os.path.join(work_dir, 'features') + os.sep
+    os.makedirs(work_dir, exist_ok=True)
 
-    # compute mean and std of train dataset to normalize train/val/test dataset
-    t1_mean, t1_std = compute_mean_std(images_dir=f'{dataset_name}/train/A/')
-    t2_mean, t2_std = compute_mean_std(images_dir=f'{dataset_name}/train/B/')
-
+    t1_mean, t1_std = compute_mean_std(
+        images_dir=os.path.join(dataset_root, 'train', image_dir_a)
+    )
+    t2_mean, t2_std = compute_mean_std(
+        images_dir=os.path.join(dataset_root, 'train', image_dir_b)
+    )
     dataset_args = dict(t1_mean=t1_mean, t1_std=t1_std, t2_mean=t2_mean, t2_std=t2_std)
-    test_dataset = BasicDataset(t1_images_dir=f'{dataset_name}/test/A/',
-                                t2_images_dir=f'{dataset_name}/test/B/',
-                                labels_dir=f'{dataset_name}/test/label/',
-                                train=False, **dataset_args)
-    # 2. Create data loaders
-    loader_args = dict(num_workers=8,
-                       prefetch_factor=5,
-                       persistent_workers=True
-                       )
-    test_loader = DataLoader(test_dataset, shuffle=False, drop_last=False,
-                             batch_size=ph.batch_size * ph.inference_ratio, **loader_args)
+    test_dataset = BasicDataset(
+        t1_images_dir=os.path.join(dataset_root, 'test', image_dir_a),
+        t2_images_dir=os.path.join(dataset_root, 'test', image_dir_b),
+        labels_dir=os.path.join(dataset_root, 'test', label_dir),
+        train=False,
+        **dataset_args,
+    )
+    loader_args = dict(num_workers=num_workers, persistent_workers=num_workers > 0)
+    if num_workers > 0:
+        loader_args['prefetch_factor'] = 5
+    test_loader = DataLoader(
+        test_dataset,
+        shuffle=False,
+        drop_last=False,
+        batch_size=ph.batch_size * ph.inference_ratio,
+        **loader_args,
+    )
 
-    # 3. Initialize logging
     logging.basicConfig(level=logging.INFO)
-
-    # 4. Set up device, model, metric calculator
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logging.basicConfig(level=logging.INFO)
-    logging.info(f'Using device {device}')
-    net = DPCD()
-    net.to(device=device)
-    print("------------------------------------------------------------------ph.load:",ph.load)
-    assert ph.load, 'Loading model error, checkpoint ph.load'
-    load_model = torch.load(ph.load, map_location=device)
-    if load_checkpoint:
+    logging.info('Using device %s', device)
+    net = DPCD().to(device=device)
+    load_model = torch.load(checkpoint, map_location=device)
+    if checkpoint_format == 'checkpoint':
         net.load_state_dict(load_model['net'])
     else:
         net.load_state_dict(load_model)
-    logging.info(f'Model loaded from {ph.load}')
-    torch.save(net.state_dict(), f'./test_best_model.pth')
-    #torch.save(net.state_dict(), f'{dataset_name}_best_model.pth')
+    logging.info('Model loaded from %s', checkpoint)
+    torch.save(net.state_dict(), os.path.join(work_dir, 'test_model_state_dict.pth'))
 
     metric_collection = MetricCollection({
         'accuracy': Accuracy().to(device=device),
         'precision': Precision().to(device=device),
         'recall': Recall().to(device=device),
-        'f1score': F1Score().to(device=device)
-    })  # metrics calculator
-
+        'f1score': F1Score().to(device=device),
+    })
     net.eval()
-    logging.info('SET model mode to test!')
-
     with torch.no_grad():
-        for batch_img1, batch_img2, labels, name in tqdm(test_loader):
+        for batch_img1, batch_img2, labels, names in tqdm(test_loader):
             batch_img1 = batch_img1.float().to(device)
             batch_img2 = batch_img2.float().to(device)
             labels = labels.float().to(device)
-
-            cd_preds = net(batch_img1, batch_img2, log=True, img_name=name)
-            cd_preds = torch.sigmoid(cd_preds[0])
-
-            # Calculate and log other batch metrics
-            cd_preds = cd_preds.float()
+            cd_preds = net(batch_img1, batch_img2, log=True, img_name=names)
+            cd_preds = torch.sigmoid(cd_preds[0]).float()
             labels = labels.int().unsqueeze(1)
             metric_collection.update(cd_preds, labels)
 
-            # clear batch variables from memory
-            del batch_img1, batch_img2, labels
-
         test_metrics = metric_collection.compute()
-        print(f"Metrics on all data: {test_metrics}")
+        print(f'Metrics on all data: {test_metrics}')
         metric_collection.reset()
-
-    print('over')
 
 
 if __name__ == '__main__':
-
-    try:
-        #train_net(dataset_name='/T2007061/lrz_workspace/SYSU-CD256', load_checkpoint=False)
-        #train_net(dataset_name='/T2007061/lrz_workspace/dataset/ChangeDetectionDataset/Real/subset', load_checkpoint=False)
-        #train_net(dataset_name='/T2007061/lrz_workspace/dataset/LEVIR-CD256', load_checkpoint=False)
-        train_net(dataset_name='/T2007061/lrz_workspace/dataset/WHU-CD-256', load_checkpoint=False)
-        
-    except KeyboardInterrupt:
-        logging.info('Error')
-        sys.exit(0)
-        
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset-root', required=True)
+    parser.add_argument('--image-dir-a', default='A')
+    parser.add_argument('--image-dir-b', default='B')
+    parser.add_argument('--label-dir', default='label')
+    parser.add_argument('--checkpoint', required=True)
+    parser.add_argument('--checkpoint-format', choices=['state_dict', 'checkpoint'], default='state_dict')
+    parser.add_argument('--work-dir', required=True)
+    parser.add_argument('--num-workers', type=int, default=8)
+    args = parser.parse_args()
+    run_inference(
+        args.dataset_root,
+        args.checkpoint,
+        args.image_dir_a,
+        args.image_dir_b,
+        args.label_dir,
+        args.checkpoint_format,
+        args.work_dir,
+        args.num_workers,
+    )

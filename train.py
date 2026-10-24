@@ -1,5 +1,7 @@
 import sys
 import time
+import argparse
+import json
 
 import ipdb
 import numpy as np
@@ -19,10 +21,6 @@ from torchmetrics import MetricCollection, Accuracy, Precision, Recall, F1Score
 from utils.utils import train_val
 from utils.dataset_process import compute_mean_std
 from utils.dataset_process import image_shuffle, split_image
-import onnx
-import onnx.utils
-import onnx.version_converter
-import netron
 from torch.utils.data import DataLoader
 from prefetch_generator import BackgroundGenerator
 
@@ -54,16 +52,19 @@ def random_seed(SEED):
     # if model and input are fixed, set True to search better convolution algorithm
     torch.backends.cudnn.benchmark = True
 
-def auto_experiment():
+def auto_experiment(dataset_root, image_dir_a, image_dir_b, label_dir, work_dir, num_workers):
     random_seed(SEED=ph.random_seed)
     try:
-        train_net(dataset_name=ph.dataset_name)
+        train_net(dataset_name=dataset_root, image_dir_a=image_dir_a,
+                  image_dir_b=image_dir_b, label_dir=label_dir,
+                  work_dir=work_dir, num_workers=num_workers)
     except KeyboardInterrupt:
         logging.info('Interrupt')
         sys.exit(0)
 
 
-def train_net(dataset_name):
+def train_net(dataset_name, image_dir_a='A', image_dir_b='B', label_dir='label',
+              work_dir='./FHRB-Net_work_dirs/default', num_workers=8):
     """
     This is the workflow of training model and evaluating model,
     note that the dataset should be organized as
@@ -78,18 +79,27 @@ def train_net(dataset_name):
     # 1. Create dataset, checkpoint and best model path
 
     # compute mean and std of train dataset to normalize train/val dataset
-    t1_mean, t1_std = compute_mean_std(images_dir=f'{dataset_name}/train/A/')
-    t2_mean, t2_std = compute_mean_std(images_dir=f'{dataset_name}/train/B/')
+    ph.dataset_name = dataset_name
+    ph.image_dir_a = image_dir_a
+    ph.image_dir_b = image_dir_b
+    ph.label_dir = label_dir
+    ph.log_path = os.path.join(work_dir, 'features') + os.sep
+    os.makedirs(work_dir, exist_ok=True)
+    with open(os.path.join(work_dir, 'config.json'), 'w', encoding='utf-8') as config_file:
+        json.dump(ph.state_dict(), config_file, indent=2)
+
+    t1_mean, t1_std = compute_mean_std(images_dir=os.path.join(dataset_name, 'train', image_dir_a))
+    t2_mean, t2_std = compute_mean_std(images_dir=os.path.join(dataset_name, 'train', image_dir_b))
 
     # dataset path should be dataset_name/train or val/t1 or t2 or label
     dataset_args = dict(t1_mean=t1_mean, t1_std=t1_std, t2_mean=t2_mean, t2_std=t2_std)
-    train_dataset = BasicDataset(t1_images_dir=f'{dataset_name}/train/A/',
-                                 t2_images_dir=f'{dataset_name}/train/B/',
-                                 labels_dir=f'{dataset_name}/train/label/',
+    train_dataset = BasicDataset(t1_images_dir=os.path.join(dataset_name, 'train', image_dir_a),
+                                 t2_images_dir=os.path.join(dataset_name, 'train', image_dir_b),
+                                 labels_dir=os.path.join(dataset_name, 'train', label_dir),
                                  train=True, **dataset_args)
-    val_dataset = BasicDataset(t1_images_dir=f'{dataset_name}/val/A/',
-                               t2_images_dir=f'{dataset_name}/val/B/',
-                               labels_dir=f'{dataset_name}/val/label/',
+    val_dataset = BasicDataset(t1_images_dir=os.path.join(dataset_name, 'val', image_dir_a),
+                               t2_images_dir=os.path.join(dataset_name, 'val', image_dir_b),
+                               labels_dir=os.path.join(dataset_name, 'val', label_dir),
                                train=False, **dataset_args)
 
     # 2. Markdown dataset size
@@ -98,11 +108,9 @@ def train_net(dataset_name):
 
     # 3. Create data loaders
 
-    loader_args = dict(num_workers=8,
-                       prefetch_factor=5,
-                       persistent_workers=True,
-                       # pin_memeory=True,
-                       )
+    loader_args = dict(num_workers=num_workers, persistent_workers=num_workers > 0)
+    if num_workers > 0:
+        loader_args['prefetch_factor'] = 5
     train_loader = DataLoaderX(train_dataset, shuffle=True, drop_last=False, batch_size=ph.batch_size, **loader_args)
     val_loader = DataLoaderX(val_dataset, shuffle=False, drop_last=False,
                              batch_size=ph.batch_size * ph.inference_ratio, **loader_args)
@@ -175,9 +183,9 @@ def train_net(dataset_name):
     # best_f1score_model_path = f'./{dataset_name}_best_f1score_model/'
     # best_loss_model_path = f'./{dataset_name}_best_loss_model/'
 
-    checkpoint_path = f'./xr_sub_LEVIR/LEVIR_CD256_checkpoint/'
-    best_f1score_model_path = f'./xr_sub_LEVIR/LEVIR_CD256_best_f1score_model/'
-    best_loss_model_path = f'./xr_sub_LEVIR/LEVIR_CD256_best_loss_model/'
+    checkpoint_path = os.path.join(work_dir, 'checkpoints') + os.sep
+    best_f1score_model_path = os.path.join(work_dir, 'best_f1score') + os.sep
+    best_loss_model_path = os.path.join(work_dir, 'best_loss') + os.sep
 
     non_improved_epoch = 0  # adjust learning rate when non_improved_epoch equal to patience
 
@@ -191,7 +199,8 @@ def train_net(dataset_name):
                 dataloader=train_loader, device=device, log_wandb=log_wandb, net=net,
                 optimizer=optimizer, total_step=total_step, lr=lr, criterion=criterion,
                 metric_collection=metric_collection, to_pilimg=to_pilimg, epoch=epoch,
-                warmup_lr=warmup_lr, grad_scaler=grad_scaler
+                warmup_lr=warmup_lr, grad_scaler=grad_scaler,
+                image_dir_a=image_dir_a, image_dir_b=image_dir_b, label_dir=label_dir
             )
         # 6. Begin evaluation
 
@@ -206,13 +215,22 @@ def train_net(dataset_name):
                         metric_collection=metric_collection, to_pilimg=to_pilimg, epoch=epoch,
                         best_metrics=best_metrics, checkpoint_path=checkpoint_path,
                         best_f1score_model_path=best_f1score_model_path, best_loss_model_path=best_loss_model_path,
-                        non_improved_epoch=non_improved_epoch
+                        non_improved_epoch=non_improved_epoch,
+                        image_dir_a=image_dir_a, image_dir_b=image_dir_b, label_dir=label_dir
                     )
 
     wandb.finish()
 
 
 if __name__ == '__main__':
-
-    auto_experiment()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset-root', default=ph.dataset_name)
+    parser.add_argument('--image-dir-a', default='A')
+    parser.add_argument('--image-dir-b', default='B')
+    parser.add_argument('--label-dir', default='label')
+    parser.add_argument('--work-dir', default='./FHRB-Net_work_dirs/default')
+    parser.add_argument('--num-workers', type=int, default=8)
+    args = parser.parse_args()
+    auto_experiment(args.dataset_root, args.image_dir_a, args.image_dir_b,
+                    args.label_dir, args.work_dir, args.num_workers)
 
