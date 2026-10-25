@@ -52,8 +52,11 @@ def random_seed(SEED):
     # if model and input are fixed, set True to search better convolution algorithm
     torch.backends.cudnn.benchmark = True
 
-def auto_experiment(dataset_root, image_dir_a, image_dir_b, label_dir, work_dir, num_workers):
+def auto_experiment(dataset_root, image_dir_a, image_dir_b, label_dir, work_dir, num_workers,
+                    batch_size=None):
     random_seed(SEED=ph.random_seed)
+    if batch_size is not None:
+        ph.batch_size = batch_size
     try:
         train_net(dataset_name=dataset_root, image_dir_a=image_dir_a,
                   image_dir_b=image_dir_b, label_dir=label_dir,
@@ -230,7 +233,8 @@ if __name__ == '__main__':
     parser.add_argument('--label-dir', default='label')
     parser.add_argument('--work-dir', default='./FHRB-Net_work_dirs/default')
     parser.add_argument('--num-workers', type=int, default=8)
+    parser.add_argument('--batch-size', type=int, default=None)
     args = parser.parse_args()
     auto_experiment(args.dataset_root, args.image_dir_a, args.image_dir_b,
-                    args.label_dir, args.work_dir, args.num_workers)
+                    args.label_dir, args.work_dir, args.num_workers, args.batch_size)
 

@@ -54,7 +54,7 @@ bash run_train.sh whucd
 bash run_train.sh sysucd
 ```
 
-The default GPU is 0 and workers default to 8. Override runtime choices with `GPU_ID=1` or `NUM_WORKERS=4`. Checkpoints are separated into `checkpoints/`, `best_f1score/`, and `best_loss/` below each dataset work directory. Offline W&B logs stay within that same work directory.
+The default GPU is 0 and workers default to 8. Override runtime choices with `GPU_ID=1` or `NUM_WORKERS=4`. If GPU memory is insufficient, set `BATCH_SIZE=4`; the default remains 8 and validation uses twice the training batch size. Checkpoints are separated into `checkpoints/`, `best_f1score/`, and `best_loss/` below each dataset work directory. Offline W&B logs stay within that same work directory.
 
 The source initializes `best_metrics['lowest loss']` to zero and only saves a best-loss model when a later loss is below that value; positive losses therefore normally will not produce a file in `best_loss/`. Best-F1 and periodic checkpoint saving are unaffected.
 

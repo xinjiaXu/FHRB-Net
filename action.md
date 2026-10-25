@@ -41,7 +41,13 @@ bash run_train.sh whucd
 bash run_train.sh sysucd
 ```
 
-Restored defaults are 200 epochs, batch 8, AdamW, lr `2e-4`, weight decay `1e-3`, seed 42, 500-step warmup, AMP, and validation from epoch 100. GPU 0 and 8 workers are the launcher defaults; override with `GPU_ID=1` or `NUM_WORKERS=4`.
+If LEVIR-CD training runs out of GPU memory at the default batch size:
+
+```bash
+BATCH_SIZE=4 bash run_train.sh levircd
+```
+
+Restored defaults are 200 epochs, batch 8, AdamW, lr `2e-4`, weight decay `1e-3`, seed 42, 500-step warmup, AMP, and validation from epoch 100. GPU 0 and 8 workers are the launcher defaults; override with `GPU_ID=1` or `NUM_WORKERS=4`. If GPU memory is insufficient, use `BATCH_SIZE=4`; validation batch size remains twice the training batch size.
 
 ## Inference
 

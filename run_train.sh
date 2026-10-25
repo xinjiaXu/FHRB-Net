@@ -5,6 +5,7 @@ repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 data_root="${DATA_ROOT:-/home/xxj/Data}"
 gpu_id="${GPU_ID:-0}"
 num_workers="${NUM_WORKERS:-8}"
+batch_size="${BATCH_SIZE:-}"
 
 if [[ $# -ne 1 ]]; then
   printf 'Usage: %s {levircd|levircdplus|cdd|whucd|sysucd}\n' "$0" >&2
@@ -35,10 +36,15 @@ cd "$repo_root"
 export CUDA_VISIBLE_DEVICES="$gpu_id"
 export WANDB_MODE=offline
 export WANDB_DIR="$work_dir/wandb"
-python train.py \
+train_args=( \
   --dataset-root "$dataset_root" \
   --image-dir-a "$image_a" \
   --image-dir-b "$image_b" \
   --label-dir "$label_dir" \
   --work-dir "$work_dir" \
-  --num-workers "$num_workers"
+  --num-workers "$num_workers" \
+)
+if [[ -n "$batch_size" ]]; then
+  train_args+=(--batch-size "$batch_size")
+fi
+python train.py "${train_args[@]}"
