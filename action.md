@@ -31,6 +31,18 @@ bash prepare_server_data.sh /home/xxj/Data
 
 To run inference with an author-provided trained model, download the `weights` archive from [Baidu Netdisk](https://pan.baidu.com/s/1JKW8Btz_esnTO18PtuZ5mw), use extraction code `au2c`, and put the desired `.pth` file in `weights/`. Training defaults to `load=False` and does not require this FHRB-Net checkpoint. The environment setup uses the separate `requirements_server.txt`; the original file contains empty `onnx==` and `netron==` pins.
 
+## Model complexity
+
+After activating `fhrbnet-rs`, install the profiling dependency and count parameters/FLOPs for one paired 256x256 input. No trained checkpoint is needed:
+
+```bash
+python -m pip install -r requirements_profile.txt
+CUDA_VISIBLE_DEVICES=0 python profile_model.py --device cuda:0 \
+  --output FHRB-Net_work_dirs/profile_256.json
+```
+
+The JSON lists unsupported operators. The model contains FFT operations; if fvcore lists them as unsupported, the FLOP total excludes FFT work and is only partial.
+
 ## Train
 
 ```bash
