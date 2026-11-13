@@ -144,15 +144,14 @@ class AFFM(nn.Module):
         self.device = device
         
     def get_frequency_masks(self, H, W, device):
-        y, x = np.ogrid[:H, :W]
+        y = torch.arange(H, device=device, dtype=torch.float32)
+        x = torch.arange(W, device=device, dtype=torch.float32)
+        grid_y, grid_x = torch.meshgrid(y, x, indexing='ij')
         center_y, center_x = H // 2, W // 2
-        radius = np.sqrt((x - center_x) ** 2 + (y - center_y) ** 2)
-        max_radius = np.max(radius)
-        low_mask = (radius <= max_radius * self.cutoff_ratio).astype(np.float32)
+        radius = torch.sqrt((grid_x - center_x) ** 2 + (grid_y - center_y) ** 2)
+        low_mask = (radius <= radius.max() * self.cutoff_ratio).to(torch.float32)
         high_mask = 1.0 - low_mask
-        # [1,1,H,W]方便广播
-        return (torch.from_numpy(low_mask)[None, None, ...].to(device),
-                torch.from_numpy(high_mask)[None, None, ...].to(device))
+        return low_mask[None, None, ...], high_mask[None, None, ...]
 
     @staticmethod
     def negative_cosine_attention(f1, f2, eps=1e-8):

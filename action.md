@@ -41,7 +41,7 @@ CUDA_VISIBLE_DEVICES=0 python profile_model.py --device cuda:0 \
   --output FHRB-Net_work_dirs/profile_256.json
 ```
 
-The JSON lists unsupported operators. The model contains FFT operations; if fvcore lists them as unsupported, the FLOP total excludes FFT work and is only partial.
+The JSON lists unsupported operators. The model contains FFT operations; if fvcore lists them as unsupported, the FLOP total excludes FFT work and is only partial. Add `--debug-flops` to re-raise tracing failures with their full traceback.
 
 ## Train
 

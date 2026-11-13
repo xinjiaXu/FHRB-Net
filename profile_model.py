@@ -1,5 +1,6 @@
 import argparse
 import json
+import traceback
 from collections import Counter
 
 import torch
@@ -14,6 +15,8 @@ def main():
     parser.add_argument("--width", type=int, default=256)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--output", default=None)
+    parser.add_argument("--debug-flops", action="store_true",
+                        help="re-raise fvcore errors with a full traceback")
     args = parser.parse_args()
 
     device = torch.device(args.device)
@@ -27,8 +30,10 @@ def main():
         flops = analysis.total()
         unsupported = dict(Counter(analysis.unsupported_ops()))
     except Exception as exc:
+        if args.debug_flops:
+            raise
         flops = None
-        flop_error = f"{type(exc).__name__}: {exc}"
+        flop_error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
     parameters_total = sum(p.numel() for p in model.parameters())
     result = {
         "model": "FHRB-Net-DPCD",
