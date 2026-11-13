@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from utils.path_hyperparameter import ph
 import torch
 import logging
+import re
 from tqdm import tqdm
 import wandb
 import ipdb
@@ -153,9 +154,10 @@ def train_val(
             t1_images_dir = Path(dataset_name) / mode / image_dir_a
             t2_images_dir = Path(dataset_name) / mode / image_dir_b
             labels_dir = Path(dataset_name) / mode / label_dir
-            t1_img_log = Image.open(list(t1_images_dir.glob(name[sample_index] + '.*'))[0])
-            t2_img_log = Image.open(list(t2_images_dir.glob(name[sample_index] + '.*'))[0])
-            label_log = Image.open(list(labels_dir.glob(name[sample_index] + '.*'))[0])
+            source_name = re.sub(r'__patch_\d+_\d+$', '', name[sample_index])
+            t1_img_log = Image.open(list(t1_images_dir.glob(source_name + '.*'))[0])
+            t2_img_log = Image.open(list(t2_images_dir.glob(source_name + '.*'))[0])
+            label_log = Image.open(list(labels_dir.glob(source_name + '.*'))[0])
             pred_log = torch.round(preds[sample_index]).cpu().clone().float()
             # pred_log[pred_log >= 0.5] = 1
             # pred_log[pred_log < 0.5] = 0

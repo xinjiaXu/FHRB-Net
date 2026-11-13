@@ -53,21 +53,21 @@ def random_seed(SEED):
     torch.backends.cudnn.benchmark = True
 
 def auto_experiment(dataset_root, image_dir_a, image_dir_b, label_dir, work_dir, num_workers,
-                    batch_size=None):
+                    batch_size=None, patch_size=0):
     random_seed(SEED=ph.random_seed)
     if batch_size is not None:
         ph.batch_size = batch_size
     try:
         train_net(dataset_name=dataset_root, image_dir_a=image_dir_a,
                   image_dir_b=image_dir_b, label_dir=label_dir,
-                  work_dir=work_dir, num_workers=num_workers)
+                  work_dir=work_dir, num_workers=num_workers, patch_size=patch_size)
     except KeyboardInterrupt:
         logging.info('Interrupt')
         sys.exit(0)
 
 
 def train_net(dataset_name, image_dir_a='A', image_dir_b='B', label_dir='label',
-              work_dir='./FHRB-Net_work_dirs/default', num_workers=8):
+              work_dir='./FHRB-Net_work_dirs/default', num_workers=8, patch_size=0):
     """
     This is the workflow of training model and evaluating model,
     note that the dataset should be organized as
@@ -86,6 +86,7 @@ def train_net(dataset_name, image_dir_a='A', image_dir_b='B', label_dir='label',
     ph.image_dir_a = image_dir_a
     ph.image_dir_b = image_dir_b
     ph.label_dir = label_dir
+    ph.patch_size = patch_size or 256
     ph.log_path = os.path.join(work_dir, 'features') + os.sep
     os.makedirs(work_dir, exist_ok=True)
     with open(os.path.join(work_dir, 'config.json'), 'w', encoding='utf-8') as config_file:
@@ -99,11 +100,11 @@ def train_net(dataset_name, image_dir_a='A', image_dir_b='B', label_dir='label',
     train_dataset = BasicDataset(t1_images_dir=os.path.join(dataset_name, 'train', image_dir_a),
                                  t2_images_dir=os.path.join(dataset_name, 'train', image_dir_b),
                                  labels_dir=os.path.join(dataset_name, 'train', label_dir),
-                                 train=True, **dataset_args)
+                                 train=True, patch_size=patch_size, **dataset_args)
     val_dataset = BasicDataset(t1_images_dir=os.path.join(dataset_name, 'val', image_dir_a),
                                t2_images_dir=os.path.join(dataset_name, 'val', image_dir_b),
                                labels_dir=os.path.join(dataset_name, 'val', label_dir),
-                               train=False, **dataset_args)
+                               train=False, patch_size=patch_size, **dataset_args)
 
     # 2. Markdown dataset size
     n_train = len(train_dataset)
@@ -234,7 +235,9 @@ if __name__ == '__main__':
     parser.add_argument('--work-dir', default='./FHRB-Net_work_dirs/default')
     parser.add_argument('--num-workers', type=int, default=8)
     parser.add_argument('--batch-size', type=int, default=None)
+    parser.add_argument('--patch-size', type=int, default=0)
     args = parser.parse_args()
     auto_experiment(args.dataset_root, args.image_dir_a, args.image_dir_b,
-                    args.label_dir, args.work_dir, args.num_workers, args.batch_size)
+                    args.label_dir, args.work_dir, args.num_workers, args.batch_size,
+                    args.patch_size)
 

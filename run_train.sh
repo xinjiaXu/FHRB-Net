@@ -6,6 +6,7 @@ data_root="${DATA_ROOT:-/home/xxj/Data}"
 gpu_id="${GPU_ID:-0}"
 num_workers="${NUM_WORKERS:-8}"
 batch_size="${BATCH_SIZE:-}"
+patch_size=0
 
 if [[ $# -ne 1 ]]; then
   printf 'Usage: %s {levircd|levircdplus|cdd|whucd|sysucd}\n' "$0" >&2
@@ -13,8 +14,8 @@ if [[ $# -ne 1 ]]; then
 fi
 
 case "$1" in
-  levircd) dataset_root="$data_root/LEVIR_CD"; image_a="A"; image_b="B"; label_dir="label" ;;
-  levircdplus) dataset_root="$data_root/LEVIR_CD_PLUS/cut_data"; image_a="A"; image_b="B"; label_dir="label" ;;
+  levircd) dataset_root="$data_root/LEVIR_CD"; image_a="A"; image_b="B"; label_dir="label"; patch_size=256 ;;
+  levircdplus) dataset_root="$data_root/LEVIR_CD_PLUS/cut_data"; image_a="A"; image_b="B"; label_dir="label"; patch_size=256 ;;
   cdd) dataset_root="$data_root/CDD"; image_a="A"; image_b="B"; label_dir="OUT" ;;
   whucd) dataset_root="$data_root/WHUCD"; image_a="A"; image_b="B"; label_dir="label" ;;
   sysucd) dataset_root="$data_root/SYSU_CD"; image_a="time1"; image_b="time2"; label_dir="label" ;;
@@ -43,6 +44,7 @@ train_args=( \
   --label-dir "$label_dir" \
   --work-dir "$work_dir" \
   --num-workers "$num_workers" \
+  --patch-size "$patch_size" \
 )
 if [[ -n "$batch_size" ]]; then
   train_args+=(--batch-size "$batch_size")

@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 
 def run_inference(dataset_root, checkpoint, image_dir_a, image_dir_b, label_dir,
-                  checkpoint_format, work_dir, num_workers):
+                  checkpoint_format, work_dir, num_workers, patch_size=0, batch_size=1):
     ph.dataset_name = dataset_root
     ph.image_dir_a = image_dir_a
     ph.image_dir_b = image_dir_b
@@ -35,6 +35,7 @@ def run_inference(dataset_root, checkpoint, image_dir_a, image_dir_b, label_dir,
         t2_images_dir=os.path.join(dataset_root, 'test', image_dir_b),
         labels_dir=os.path.join(dataset_root, 'test', label_dir),
         train=False,
+        patch_size=patch_size,
         **dataset_args,
     )
     loader_args = dict(num_workers=num_workers, persistent_workers=num_workers > 0)
@@ -44,7 +45,7 @@ def run_inference(dataset_root, checkpoint, image_dir_a, image_dir_b, label_dir,
         test_dataset,
         shuffle=False,
         drop_last=False,
-        batch_size=ph.batch_size * ph.inference_ratio,
+        batch_size=batch_size,
         **loader_args,
     )
 
@@ -92,6 +93,8 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint-format', choices=['state_dict', 'checkpoint'], default='state_dict')
     parser.add_argument('--work-dir', required=True)
     parser.add_argument('--num-workers', type=int, default=8)
+    parser.add_argument('--patch-size', type=int, default=0)
+    parser.add_argument('--batch-size', type=int, default=1)
     args = parser.parse_args()
     run_inference(
         args.dataset_root,
@@ -102,4 +105,6 @@ if __name__ == '__main__':
         args.checkpoint_format,
         args.work_dir,
         args.num_workers,
+        args.patch_size,
+        args.batch_size,
     )

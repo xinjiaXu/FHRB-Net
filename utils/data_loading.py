@@ -31,7 +31,8 @@ class BasicDataset(Dataset):
     """
 
     def __init__(self, t1_images_dir: str, t2_images_dir: str, labels_dir: str, train: bool,
-                 t1_mean: list, t1_std: list, t2_mean: list, t2_std: list):
+                 t1_mean: list, t1_std: list, t2_mean: list, t2_std: list,
+                 patch_size: int = 0):
         """ Init of basic dataset.
         
         Parameter:
@@ -50,6 +51,9 @@ class BasicDataset(Dataset):
         self.t2_images_dir = Path(t2_images_dir)
         self.labels_dir = Path(labels_dir)
         self.train = train
+        if patch_size < 0:
+            raise ValueError("patch_size must be zero (disabled) or a positive integer")
+        self.patch_size = patch_size
 
         # image name without suffix
         self.t1_ids = [splitext(file)[0] for file in listdir(t1_images_dir) if not file.startswith('.')]
@@ -63,6 +67,27 @@ class BasicDataset(Dataset):
             raise RuntimeError(f'No input file found in {t2_images_dir}, make sure you put your images there')
         assert len(self.t1_ids) == len(self.t2_ids), 'number of t1 images is not equivalent to number of t2 images'
         logging.info(f'Creating dataset with {len(self.t1_ids)} examples')
+
+        self.samples = []
+        for sample_id in self.t1_ids:
+            if patch_size == 0:
+                self.samples.append((sample_id, None, None))
+                continue
+            image_files = list(self.t1_images_dir.glob(sample_id + '.*'))
+            if len(image_files) != 1:
+                raise ValueError(f"Expected one image for {sample_id}, found {image_files}")
+            with Image.open(image_files[0]) as image:
+                width, height = image.size
+            if height % patch_size or width % patch_size:
+                raise ValueError(
+                    f"{image_files[0]} has size {width}x{height}, not divisible by "
+                    f"patch_size={patch_size}"
+                )
+            for top in range(0, height, patch_size):
+                for left in range(0, width, patch_size):
+                    self.samples.append((sample_id, top, left))
+        if patch_size:
+            logging.info(f'Expanded dataset to {len(self.samples)} {patch_size}x{patch_size} patches')
 
         self.train_transforms_all = A.Compose([
             A.Flip(p=0.5),
@@ -101,7 +126,7 @@ class BasicDataset(Dataset):
     def __len__(self):
         """ Return length of dataset."""
 
-        return len(self.t1_ids)
+        return len(self.samples)
 
     @classmethod
     def label_preprocess(cls, label):
@@ -138,8 +163,8 @@ class BasicDataset(Dataset):
             name(str): the same name of t1 image, t2 image and label.
         """
 
-        t1_name = self.t1_ids[idx]
-        t2_name = self.t2_ids[idx]
+        t1_name, top, left = self.samples[idx]
+        t2_name = t1_name
         assert t1_name == t2_name, f't1 name{t1_name} not equal to t2 name{t2_name}'
         t1_img_file = list(self.t1_images_dir.glob(t1_name + '.*'))
         t2_img_file = list(self.t2_images_dir.glob(t2_name + '.*'))
@@ -155,6 +180,17 @@ class BasicDataset(Dataset):
         # label = np.array(label)
         label = self.load(label_file[0])
         label = self.label_preprocess(label)
+
+        if t1_img.shape[:2] != t2_img.shape[:2] or t1_img.shape[:2] != label.shape[:2]:
+            raise ValueError(
+                f"Spatial dimensions differ for {t1_name}: "
+                f"t1={t1_img.shape}, t2={t2_img.shape}, label={label.shape}"
+            )
+        if top is not None:
+            size = self.patch_size
+            t1_img = t1_img[top:top + size, left:left + size]
+            t2_img = t2_img[top:top + size, left:left + size]
+            label = label[top:top + size, left:left + size]
 
         if self.train:
             sample = self.train_transforms_all(image=t1_img, image1=t2_img, mask=label)
@@ -172,6 +208,7 @@ class BasicDataset(Dataset):
         # ipdb.set_trace()
         t1_tensor, t2_tensor, label_tensor = sample['image'].contiguous(),\
                                              sample['image1'].contiguous(), sample['mask'].contiguous()
-        name = t1_name
+        name = (t1_name if top is None else
+                f"{t1_name}__patch_{top}_{left}")
 
         return t1_tensor, t2_tensor, label_tensor, name

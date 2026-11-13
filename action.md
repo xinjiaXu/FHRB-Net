@@ -53,13 +53,13 @@ bash run_train.sh whucd
 bash run_train.sh sysucd
 ```
 
-If LEVIR-CD training runs out of GPU memory at the default batch size:
+LEVIR-CD and LEVIR-CD-PLUS images are tiled into aligned, non-overlapping 256x256 patches in memory by the launcher. This is required for 1024x1024 source images and does not write or alter dataset files. Already-cropped 256x256 data remains one sample per file. Other datasets retain their existing read behavior.
+
+Defaults are 200 epochs, batch 8, AdamW, lr `2e-4`, weight decay `1e-3`, seed 42, 500-step warmup, AMP, and validation from epoch 100. GPU 0 and 8 workers are the launcher defaults; override with `GPU_ID=1` or `NUM_WORKERS=4`. Validation batch size is twice the training batch size. For LEVIR datasets on a 32 GB GPU, start with batch 1 or 2:
 
 ```bash
-BATCH_SIZE=4 bash run_train.sh levircd
+GPU_ID=1 BATCH_SIZE=1 NUM_WORKERS=2 bash run_train.sh levircdplus
 ```
-
-Restored defaults are 200 epochs, batch 8, AdamW, lr `2e-4`, weight decay `1e-3`, seed 42, 500-step warmup, AMP, and validation from epoch 100. GPU 0 and 8 workers are the launcher defaults; override with `GPU_ID=1` or `NUM_WORKERS=4`. If GPU memory is insufficient, use `BATCH_SIZE=4`; validation batch size remains twice the training batch size.
 
 ## Inference
 
@@ -74,3 +74,5 @@ bash run_inference.sh sysucd weights/<downloaded-weight>.pth
 ```
 
 For a best-F1 state dict from training, use the file created below `FHRB-Net_work_dirs/<dataset>/best_f1score/` with the same command. Inference reports accuracy, precision, recall, and F1; the source inference entry does not report IoU. Outputs are written to a fresh timestamped directory.
+
+LEVIR-CD and LEVIR-CD-PLUS inference applies the same 256x256 in-memory tiling. Inference batch defaults to 1; adjust it with `INFERENCE_BATCH_SIZE` if memory allows.

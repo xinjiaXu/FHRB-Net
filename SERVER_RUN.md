@@ -42,7 +42,7 @@ The command checks folders only. Training and inference read each split directly
 | `whucd` | `/home/xxj/Data/WHUCD` | `A` | `B` | `label` |
 | `sysucd` | `/home/xxj/Data/SYSU_CD` | `time1` | `time2` | `label` |
 
-The server layout uses `A/B`, while the README describes `t1/t2`; the wrappers pass the actual directory names directly. No rename or preprocessing copy is needed.
+The server layout uses `A/B`, while the README describes `t1/t2`; the wrappers pass the actual directory names directly. LEVIR-CD and LEVIR-CD-PLUS images are tiled into aligned, non-overlapping 256x256 patches in memory for training, validation, and inference. This supports the server's 1024x1024 source images and existing 256x256 tiles without creating or changing dataset files. Other datasets keep their original input handling.
 
 ## Train
 
@@ -54,7 +54,13 @@ bash run_train.sh whucd
 bash run_train.sh sysucd
 ```
 
-The default GPU is 0 and workers default to 8. Override runtime choices with `GPU_ID=1` or `NUM_WORKERS=4`. If GPU memory is insufficient, set `BATCH_SIZE=4`; the default remains 8 and validation uses twice the training batch size. Checkpoints are separated into `checkpoints/`, `best_f1score/`, and `best_loss/` below each dataset work directory. Offline W&B logs stay within that same work directory.
+The default GPU is 0 and workers default to 8. Override runtime choices with `GPU_ID=1` or `NUM_WORKERS=4`. Validation uses twice the training batch size. For LEVIR datasets on the RTX 5090, start with:
+
+```bash
+GPU_ID=1 BATCH_SIZE=1 NUM_WORKERS=2 bash run_train.sh levircdplus
+```
+
+Checkpoints are separated into `checkpoints/`, `best_f1score/`, and `best_loss/` below each dataset work directory. Offline W&B logs stay within that same work directory.
 
 The source initializes `best_metrics['lowest loss']` to zero and only saves a best-loss model when a later loss is below that value; positive losses therefore normally will not produce a file in `best_loss/`. Best-F1 and periodic checkpoint saving are unaffected.
 
@@ -73,3 +79,5 @@ bash run_inference.sh levircd FHRB-Net_work_dirs/levircd/checkpoints/<checkpoint
 ```
 
 Inference reports the project's TorchMetrics accuracy, precision, recall and F1 over the test split. It does not report IoU although the paper reports IoU as a metric. Feature outputs and the loaded model state are placed in a fresh timestamped work directory.
+
+Inference for LEVIR-CD and LEVIR-CD-PLUS uses the same 256x256 in-memory patches and defaults to batch 1. Set `INFERENCE_BATCH_SIZE` only if more GPU memory is available.
